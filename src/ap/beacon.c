@@ -140,7 +140,8 @@ static u8 * hostapd_eid_pwr_constraint(struct hostapd_data *hapd, u8 *eid)
 	int dfs;
 
 	if (hapd->iface->current_mode == NULL ||
-	    hapd->iface->current_mode->mode != HOSTAPD_MODE_IEEE80211A)
+	    (hapd->iface->current_mode->mode != HOSTAPD_MODE_IEEE80211A &&
+	     hapd->iface->current_mode->mode != HOSTAPD_MODE_IEEE80211G))
 		return eid;
 
 	/* Let host drivers add this IE if DFS support is offloaded */
