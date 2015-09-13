@@ -307,8 +307,7 @@ struct l2_packet_data * l2_packet_init_bridge(
 
 	l2 = l2_packet_init(br_ifname, own_addr, protocol, rx_callback,
 			    rx_callback_ctx, l2_hdr);
-	if (!l2)
-		return NULL;
+	return l2;
 
 	/*
 	 * The Linux packet socket behavior has changed over the years and there

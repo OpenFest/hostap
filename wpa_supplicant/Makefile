@@ -14,7 +14,12 @@ CFLAGS += $(EXTRA_CFLAGS)
 CFLAGS += -I$(abspath ../src)
 CFLAGS += -I$(abspath ../src/utils)
 
+ifdef MULTICALL
+CFLAGS += -DMULTICALL
+endif
+
 -include .config
+-include $(if $(MULTICALL),../hostapd/.config)
 
 ifdef CONFIG_TESTING_OPTIONS
 CFLAGS += -DCONFIG_TESTING_OPTIONS
@@ -82,6 +87,8 @@ OBJS_c = wpa_cli.o ../src/common/wpa_ctrl.o
 OBJS_c += ../src/utils/wpa_debug.o
 OBJS_c += ../src/utils/common.o
 OBJS += wmm_ac.o
+
+OBJS += ../src/common/wpa_ctrl.o
 
 ifndef CONFIG_OS
 ifdef CONFIG_NATIVE_WINDOWS
@@ -773,6 +780,10 @@ ifdef CONFIG_DYNAMIC_EAP_METHODS
 CFLAGS += -DCONFIG_DYNAMIC_EAP_METHODS
 LIBS += -ldl -rdynamic
 endif
+else
+  ifdef MULTICALL
+    OBJS += ../src/eap_common/eap_common.o
+  endif
 endif
 
 ifdef CONFIG_MACSEC
@@ -793,9 +804,11 @@ NEED_EAP_COMMON=y
 NEED_RSN_AUTHENTICATOR=y
 CFLAGS += -DCONFIG_AP
 OBJS += ap.o
+ifndef MULTICALL
 CFLAGS += -DCONFIG_NO_RADIUS
 CFLAGS += -DCONFIG_NO_ACCOUNTING
 CFLAGS += -DCONFIG_NO_VLAN
+endif
 OBJS += ../src/ap/hostapd.o
 OBJS += ../src/ap/wpa_auth_glue.o
 OBJS += ../src/ap/utils.o
@@ -824,6 +837,9 @@ ifdef CONFIG_WNM
 OBJS += ../src/ap/wnm_ap.o
 endif
 ifdef CONFIG_CTRL_IFACE
+ifdef CONFIG_CTRL_IFACE_MIB
+CFLAGS += -DCONFIG_CTRL_IFACE_MIB
+endif
 OBJS += ../src/ap/ctrl_iface_ap.o
 endif
 
@@ -858,10 +874,18 @@ endif
 ifdef CONFIG_HS20
 OBJS += ../src/ap/hs20.o
 endif
+else
+  ifdef MULTICALL
+    OBJS += ../src/eap_server/eap_server.o
+    OBJS += ../src/eap_server/eap_server_identity.o
+    OBJS += ../src/eap_server/eap_server_methods.o
+  endif
 endif
 
 ifdef NEED_RSN_AUTHENTICATOR
+ifndef MULTICALL
 CFLAGS += -DCONFIG_NO_RADIUS
+endif
 NEED_AES_WRAP=y
 OBJS += ../src/ap/wpa_auth.o
 OBJS += ../src/ap/wpa_auth_ie.o
@@ -1603,6 +1627,12 @@ wpa_priv: $(BCHECK) $(OBJS_priv)
 
 $(OBJS_c) $(OBJS_t) $(OBJS_t2) $(OBJS) $(BCHECK) $(EXTRA_progs): .config
 
+wpa_supplicant_multi.a: .config $(BCHECK) $(OBJS) $(EXTRA_progs)
+	$(Q)$(CC) -c -o wpa_supplicant_multi.o -Dmain=wpa_supplicant_main $(CFLAGS) main.c
+	@$(E) "  CC " $<
+	@rm -f $@
+	@$(AR) cr $@ wpa_supplicant_multi.o $(OBJS)
+
 wpa_supplicant: $(BCHECK) $(OBJS) $(EXTRA_progs)
 	$(Q)$(LDO) $(LDFLAGS) -o wpa_supplicant $(OBJS) $(LIBS) $(EXTRALIBS)
 	@$(E) "  LD " $@
@@ -1693,6 +1723,12 @@ endif
 %@.service: %.service.arg.in
 	$(Q)sed -e 's|\@BINDIR\@|$(BINDIR)|g' $< >$@
 	@$(E) "  sed" $<
+
+dump_cflags:
+	@echo -n $(CFLAGS) " "
+
+dump_ldflags:
+	@echo -n $(LDFLAGS) $(LIBS) $(EXTRALIBS) " "
 
 wpa_supplicant.exe: wpa_supplicant
 	mv -f $< $@
