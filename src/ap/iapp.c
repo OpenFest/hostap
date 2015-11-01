@@ -385,6 +385,9 @@ struct iapp_data * iapp_init(struct hostapd_data *hapd, const char *iface)
 	struct sockaddr_in *paddr, uaddr;
 	struct iapp_data *iapp;
 	struct ip_mreqn mreq;
+	int option_true;
+
+	option_true = 1;
 
 	iapp = os_zalloc(sizeof(*iapp));
 	if (iapp == NULL)
@@ -447,6 +450,15 @@ struct iapp_data * iapp_init(struct hostapd_data *hapd, const char *iface)
 	os_memset(&uaddr, 0, sizeof(uaddr));
 	uaddr.sin_family = AF_INET;
 	uaddr.sin_port = htons(IAPP_UDP_PORT);
+
+	if (setsockopt(iapp->udp_sock, SOL_SOCKET, SO_REUSEPORT, &option_true,
+		       sizeof(option_true)) < 0) {
+		wpa_printf(MSG_INFO, "iapp_init - setsockopt[UDP,SO_REUSEPORT]: %s",
+			   strerror(errno));
+		iapp_deinit(iapp);
+		return NULL;
+	}
+
 	if (bind(iapp->udp_sock, (struct sockaddr *) &uaddr,
 		 sizeof(uaddr)) < 0) {
 		wpa_printf(MSG_INFO, "iapp_init - bind[UDP]: %s",
@@ -462,6 +474,14 @@ struct iapp_data * iapp_init(struct hostapd_data *hapd, const char *iface)
 	if (setsockopt(iapp->udp_sock, SOL_IP, IP_ADD_MEMBERSHIP, &mreq,
 		       sizeof(mreq)) < 0) {
 		wpa_printf(MSG_INFO, "iapp_init - setsockopt[UDP,IP_ADD_MEMBERSHIP]: %s",
+			   strerror(errno));
+		iapp_deinit(iapp);
+		return NULL;
+	}
+
+	if (setsockopt(iapp->udp_sock, IPPROTO_IP, IP_MULTICAST_LOOP, &option_true,
+		       sizeof(option_true)) < 0) {
+		wpa_printf(MSG_INFO, "iapp_init - setsockopt[UDP,IP_MULTICAST_LOOP]: %s",
 			   strerror(errno));
 		iapp_deinit(iapp);
 		return NULL;
